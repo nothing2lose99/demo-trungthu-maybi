@@ -249,24 +249,33 @@ button {
 .play-screen {
     z-index: 2;
     overflow: hidden;
-    background: #4dc7ff;
+    background: #4dc7ff url("../images/trungthu-background-dark.webp") center / 100% 100% no-repeat;
 }
 
 .scrolling-background {
     position: absolute;
-    inset: 0 0 auto;
+    inset: -100% 0 auto;
     height: 200%;
-    background-image: url("../images/trungthu-background-dark.webp");
-    background-position: center 0;
-    background-repeat: repeat-y;
-    background-size: 100% auto;
     will-change: transform;
     animation: sky-scroll 3s linear infinite;
 }
 
+.scrolling-background::before,
+.scrolling-background::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    left: 0;
+    height: 50%;
+    background: url("../images/trungthu-background-dark.webp") center / 100% 100% no-repeat;
+}
+
+.scrolling-background::before { top: 0; }
+.scrolling-background::after { top: 50%; }
+
 @keyframes sky-scroll {
-    from { transform: translateY(-50%); }
-    to { transform: translateY(0); }
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(0, 50%, 0); }
 }
 
 .game-hud {
@@ -362,9 +371,10 @@ button {
     bottom: 4.5%;
     left: 50%;
     width: 25%;
-    transform: translateX(-50%);
+    --character-shift: 0px;
+    transform: translate3d(var(--character-shift), 0, 0) translateX(-50%);
     transform-origin: 50% 75%;
-    will-change: left, transform;
+    will-change: transform;
     filter: drop-shadow(0 9px 7px rgba(23, 72, 129, 0.3));
 }
 
@@ -383,13 +393,13 @@ button {
 }
 
 @keyframes character-bob {
-    from { transform: translateX(-50%) rotate(-2deg) translateY(0); }
-    to { transform: translateX(-50%) rotate(2deg) translateY(-5px); }
+    from { transform: translate3d(var(--character-shift), 0, 0) translateX(-50%) rotate(-2deg) translateY(0); }
+    to { transform: translate3d(var(--character-shift), 0, 0) translateX(-50%) rotate(2deg) translateY(-5px); }
 }
 
 @keyframes character-hit {
-    0%, 100% { opacity: 1; transform: translateX(-50%); }
-    50% { opacity: 0.16; transform: translateX(-50%) scale(0.94); }
+    0%, 100% { opacity: 1; transform: translate3d(var(--character-shift), 0, 0) translateX(-50%); }
+    50% { opacity: 0.16; transform: translate3d(var(--character-shift), 0, 0) translateX(-50%) scale(0.94); }
 }
 
 .coin {

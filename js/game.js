@@ -73,9 +73,11 @@
     let damageTimer = 0;
     let coinSoundIndex = 0;
     let worldOffset = 0;
+    let characterPositionDirty = true;
     let lastResultWasWin = false;
     let isSubmittingPhone = false;
     let metrics = {
+        left: 0,
         width: 0,
         height: 0,
         characterWidth: 0,
@@ -143,9 +145,9 @@
         lives = MAX_LIVES;
         invulnerable = false;
         obstacleWave = 0;
+        characterPositionDirty = true;
         scoreValue.textContent = "0";
         timerValue.textContent = String(timeLeft);
-        character.style.left = `${characterX}%`;
         character.classList.remove("is-hit");
         updateHearts();
         resultOverlay.classList.remove("is-visible");
@@ -164,6 +166,7 @@
         playScreen.setAttribute("aria-hidden", "false");
 
         refreshMetrics();
+        renderCharacterPosition();
         running = true;
         playCollectMusic();
         lastFrame = performance.now();
@@ -234,11 +237,14 @@
     }
 
     function refreshMetrics() {
-        const width = playfield.clientWidth;
-        const height = playfield.clientHeight;
+        const playfieldRect = playfield.getBoundingClientRect();
+        const left = playfieldRect.left;
+        const width = playfieldRect.width;
+        const height = playfieldRect.height;
         const characterWidth = character.offsetWidth || width * 0.25;
         const characterHeight = character.offsetHeight || characterWidth * (497 / 417);
-        metrics = { width, height, characterWidth, characterHeight };
+        metrics = { left, width, height, characterWidth, characterHeight };
+        characterPositionDirty = true;
     }
 
     function getCharacterBounds() {
@@ -437,6 +443,7 @@
         const delta = Math.min((now - lastFrame) / 1000, 0.035);
         lastFrame = now;
         updateKeyboard(delta);
+        renderCharacterPosition();
         worldOffset += metrics.height * WORLD_SCROLL_SPEED * delta;
         fallingLayer.style.transform = `translate3d(0, ${worldOffset}px, 0)`;
 
@@ -551,7 +558,8 @@
     function prepareCollectMusic() {
         collectMusic.pause();
         collectMusic.currentTime = 0;
-        collectMusic.volume = 0.001;
+        collectMusic.volume = 0.38;
+        collectMusic.muted = true;
         const playPromise = collectMusic.play();
         if (playPromise) playPromise.catch(() => {});
     }
@@ -559,6 +567,7 @@
     function playCollectMusic() {
         collectMusic.currentTime = 0;
         collectMusic.volume = 0.38;
+        collectMusic.muted = false;
         if (collectMusic.paused) {
             const playPromise = collectMusic.play();
             if (playPromise) playPromise.catch(() => {});
@@ -568,6 +577,7 @@
     function stopCollectMusic() {
         collectMusic.pause();
         collectMusic.currentTime = 0;
+        collectMusic.muted = false;
     }
 
     function playGameSuccessSound() {
@@ -755,13 +765,19 @@
     function setCharacterPosition(percent) {
         const halfWidth = (metrics.characterWidth / metrics.width) * 50;
         characterX = Math.max(halfWidth, Math.min(100 - halfWidth, percent));
-        character.style.left = `${characterX}%`;
+        characterPositionDirty = true;
+    }
+
+    function renderCharacterPosition() {
+        if (!characterPositionDirty || !metrics.width) return;
+        const shiftFromCenter = metrics.width * (characterX / 100 - 0.5);
+        character.style.setProperty("--character-shift", `${shiftFromCenter}px`);
+        characterPositionDirty = false;
     }
 
     function moveFromPointer(event) {
         if (!running) return;
-        const rect = playfield.getBoundingClientRect();
-        setCharacterPosition(((event.clientX - rect.left) / rect.width) * 100);
+        setCharacterPosition(((event.clientX - metrics.left) / metrics.width) * 100);
         character.classList.add("is-moving");
         controlHint.classList.add("is-hidden");
     }
