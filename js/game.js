@@ -1,22 +1,16 @@
 (() => {
     "use strict";
 
-    const GAME_DURATION = 30;
+    const GAME_DURATION = 40;
     const WIN_TARGET = 100;
     const OPENING_RANDOM_INTERVAL = 260;
     const FAST_RANDOM_INTERVAL = 140;
-    const COIN_SPEED_MIN = 0.63;
-    const COIN_SPEED_MAX = 0.87;
-    const FAST_COIN_SPEED_MIN = 0.9;
-    const FAST_COIN_SPEED_MAX = 1.125;
-    const PATTERN_COIN_SPEED = 0.75;
+    const WORLD_SCROLL_SPEED = 1.1;
+    const MAX_ACTIVE_COINS = 15;
+    const MAX_ACTIVE_OBSTACLES = 2;
     const MAX_LIVES = 3;
     const DAMAGE_COOLDOWN = 1200;
     const OBSTACLE_INTERVAL = 2000;
-    const OBSTACLE_SPEED_MIN = 0.38;
-    const OBSTACLE_SPEED_MAX = 0.52;
-    const FAST_OBSTACLE_SPEED_MIN = 0.9;
-    const FAST_OBSTACLE_SPEED_MAX = 1.1;
     const FRAME_INTERVAL = window.matchMedia("(pointer: coarse)").matches ? 1000 / 30 : 0;
     const GOOGLE_SCRIPT_URL = document.querySelector('meta[name="google-apps-script-url"]')?.content.trim() || "";
 
@@ -32,6 +26,7 @@
     const startButton = document.querySelector("#startButton");
     const replayButton = document.querySelector("#replayButton");
     const playfield = document.querySelector("#playfield");
+    const fallingLayer = document.querySelector("#fallingLayer");
     const character = document.querySelector("#character");
     const scoreValue = document.querySelector("#scoreValue");
     const timerValue = document.querySelector("#timerValue");
@@ -77,6 +72,7 @@
     let hintTimer = 0;
     let damageTimer = 0;
     let coinSoundIndex = 0;
+    let worldOffset = 0;
     let lastResultWasWin = false;
     let isSubmittingPhone = false;
     let metrics = {
@@ -220,6 +216,8 @@
     function clearCoins() {
         coins.forEach((coin) => coin.element.remove());
         coins = [];
+        worldOffset = 0;
+        fallingLayer.style.transform = "translate3d(0, 0, 0)";
         playfield.querySelectorAll(".score-pop").forEach((item) => item.remove());
     }
 
@@ -264,16 +262,8 @@
         schedulePattern(8000, () => spawnFastRandomBurst(5));
         schedulePattern(9000, () => spawnZigzag(10));
         schedulePattern(10000, () => {
-            spawnCoin({
-                speedMin: FAST_COIN_SPEED_MIN,
-                speedMax: FAST_COIN_SPEED_MAX
-            });
-            spawnId = window.setInterval(() => {
-                spawnCoin({
-                    speedMin: FAST_COIN_SPEED_MIN,
-                    speedMax: FAST_COIN_SPEED_MAX
-                });
-            }, FAST_RANDOM_INTERVAL);
+            spawnCoin();
+            spawnId = window.setInterval(spawnCoin, FAST_RANDOM_INTERVAL);
         });
     }
 
@@ -288,9 +278,7 @@
         for (let index = 0; index < count; index += 1) {
             spawnCoin({
                 xPercent,
-                ySteps: index * 1.22,
-                speedMin: PATTERN_COIN_SPEED,
-                speedMax: PATTERN_COIN_SPEED
+                ySteps: index * 1.22
             });
         }
     }
@@ -299,9 +287,7 @@
         for (let index = 0; index < count; index += 1) {
             spawnCoin({
                 xPercent: 15 + (70 * index) / (count - 1),
-                ySteps: index * 1.08,
-                speedMin: PATTERN_COIN_SPEED,
-                speedMax: PATTERN_COIN_SPEED
+                ySteps: index * 1.08
             });
         }
     }
@@ -309,9 +295,7 @@
     function spawnFastRandomBurst(count) {
         for (let index = 0; index < count; index += 1) {
             spawnCoin({
-                ySteps: index * 0.72,
-                speedMin: FAST_COIN_SPEED_MIN,
-                speedMax: FAST_COIN_SPEED_MAX
+                ySteps: index * 0.72
             });
         }
     }
@@ -320,41 +304,35 @@
         for (let index = 0; index < count; index += 1) {
             spawnCoin({
                 xPercent: index % 2 === 0 ? 22 : 78,
-                ySteps: index * 1.08,
-                speedMin: PATTERN_COIN_SPEED,
-                speedMax: PATTERN_COIN_SPEED
+                ySteps: index * 1.08
             });
         }
     }
 
     function spawnCoin(options = {}) {
         if (!running) return;
+        if (fallingLayer.getElementsByClassName("coin").length >= MAX_ACTIVE_COINS) return;
         if (!metrics.width) refreshMetrics();
 
         const {
             xPercent = null,
-            ySteps = 0,
-            speedMin = COIN_SPEED_MIN,
-            speedMax = COIN_SPEED_MAX
+            ySteps = 0
         } = options;
 
         const element = document.createElement("div");
         element.className = "coin";
         element.innerHTML = '<img src="images/coin.webp" alt="" draggable="false">';
-        playfield.appendChild(element);
+        fallingLayer.appendChild(element);
 
         const size = metrics.width * 0.11;
         const x = xPercent === null
             ? size / 2 + Math.random() * (metrics.width - size)
             : metrics.width * (xPercent / 100);
-        const speedFactor = speedMin + Math.random() * (speedMax - speedMin);
-        const speed = metrics.height * speedFactor;
         const coin = {
             element,
             x,
-            y: -size * (1 + ySteps),
+            y: -size * (1 + ySteps) - worldOffset,
             size,
-            speed,
             collected: false
         };
         coins.push(coin);
@@ -384,6 +362,8 @@
     }
 
     function spawnObstacle(mode, waveIndex) {
+        if (fallingLayer.getElementsByClassName("obstacle").length >= MAX_ACTIVE_OBSTACLES) return;
+
         const width = metrics.width * 0.18;
         const height = width * (525 / 689);
         const position = findSafeObstaclePosition(width, height, mode, waveIndex);
@@ -392,20 +372,14 @@
         const element = document.createElement("div");
         element.className = `obstacle obstacle--${mode}`;
         element.innerHTML = '<img src="images/obstacle.webp" alt="" draggable="false">';
-        playfield.appendChild(element);
+        fallingLayer.appendChild(element);
 
-        const isStationary = mode === "stationary";
-        const speedMin = mode === "fast" ? FAST_OBSTACLE_SPEED_MIN : OBSTACLE_SPEED_MIN;
-        const speedMax = mode === "fast" ? FAST_OBSTACLE_SPEED_MAX : OBSTACLE_SPEED_MAX;
         const obstacle = {
             element,
             x: position.x,
-            y: position.y,
+            y: position.y - worldOffset,
             width,
             height,
-            speed: metrics.height * (speedMin + Math.random() * (speedMax - speedMin)),
-            stationary: isStationary,
-            expiresAt: isStationary ? performance.now() + 2500 : Infinity,
             hit: false
         };
 
@@ -419,22 +393,20 @@
 
         for (let attempt = 0; attempt < 32; attempt += 1) {
             const x = width / 2 + Math.random() * (fieldWidth - width);
-            const y = mode === "stationary"
-                ? fieldHeight * (0.2 + Math.random() * 0.42)
-                : -height * (1 + waveIndex * 0.25);
+            const y = -height * (1 + waveIndex * 0.25);
             const candidate = { left: x - width / 2, right: x + width / 2, top: y, bottom: y + height };
 
             const overlapsCoin = coins.some((coin) => !coin.collected && rectsOverlap(candidate, {
                 left: coin.x - coin.size / 2,
                 right: coin.x + coin.size / 2,
-                top: coin.y,
-                bottom: coin.y + coin.size
+                top: coin.y + worldOffset,
+                bottom: coin.y + worldOffset + coin.size
             }, 7));
             const overlapsObstacle = obstacles.some((obstacle) => !obstacle.hit && rectsOverlap(candidate, {
                 left: obstacle.x - obstacle.width / 2,
                 right: obstacle.x + obstacle.width / 2,
-                top: obstacle.y,
-                bottom: obstacle.y + obstacle.height
+                top: obstacle.y + worldOffset,
+                bottom: obstacle.y + worldOffset + obstacle.height
             }, 10));
 
             if (!overlapsCoin && !overlapsObstacle) return { x, y };
@@ -465,16 +437,16 @@
         const delta = Math.min((now - lastFrame) / 1000, 0.035);
         lastFrame = now;
         updateKeyboard(delta);
+        worldOffset += metrics.height * WORLD_SCROLL_SPEED * delta;
+        fallingLayer.style.transform = `translate3d(0, ${worldOffset}px, 0)`;
 
         const characterRect = getCharacterBounds();
 
         coins.forEach((coin) => {
             if (coin.collected) return;
-            coin.y += coin.speed * delta;
-            positionCoin(coin);
 
             const coinLeft = coin.x - coin.size / 2;
-            const coinTop = coin.y;
+            const coinTop = coin.y + worldOffset;
             const inset = coin.size * 0.18;
 
             if (
@@ -483,41 +455,30 @@
                 coinTop + coin.size - inset > characterRect.top &&
                 coinTop + inset < characterRect.bottom
             ) {
-                collectCoin(coin, coinLeft, coin.y);
+                collectCoin(coin, coinLeft, coinTop);
             }
         });
 
         coins = coins.filter((coin) => {
             if (coin.collected) return false;
-            if (coin.y > metrics.height + coin.size) {
+            if (coin.y + worldOffset > metrics.height + coin.size) {
                 coin.element.remove();
                 return false;
             }
             return true;
         });
 
-        updateObstacles(delta, now, characterRect);
+        updateObstacles(characterRect);
 
         animationFrame = requestAnimationFrame(update);
     }
 
-    function updateObstacles(delta, now, characterRect) {
+    function updateObstacles(characterRect) {
         obstacles.forEach((obstacle) => {
             if (obstacle.hit) return;
 
-            if (obstacle.stationary) {
-                if (now >= obstacle.expiresAt) {
-                    obstacle.hit = true;
-                    obstacle.element.remove();
-                    return;
-                }
-            } else {
-                obstacle.y += obstacle.speed * delta;
-                positionObstacle(obstacle);
-            }
-
             const obstacleLeft = obstacle.x - obstacle.width / 2;
-            const obstacleTop = obstacle.y;
+            const obstacleTop = obstacle.y + worldOffset;
             const insetX = obstacle.width * 0.12;
             const insetY = obstacle.height * 0.1;
 
@@ -533,7 +494,7 @@
 
         obstacles = obstacles.filter((obstacle) => {
             if (obstacle.hit) return false;
-            if (obstacle.y > metrics.height + obstacle.height) {
+            if (obstacle.y + worldOffset > metrics.height + obstacle.height) {
                 obstacle.element.remove();
                 return false;
             }

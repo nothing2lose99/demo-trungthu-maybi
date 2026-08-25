@@ -261,7 +261,7 @@ button {
     background-repeat: repeat-y;
     background-size: 100% auto;
     will-change: transform;
-    animation: sky-scroll 6s linear infinite;
+    animation: sky-scroll 3s linear infinite;
 }
 
 @keyframes sky-scroll {
@@ -347,6 +347,15 @@ button {
     contain: layout paint style;
 }
 
+.falling-layer {
+    position: absolute;
+    z-index: 2;
+    inset: 0;
+    pointer-events: none;
+    will-change: transform;
+    contain: layout style;
+}
+
 .character {
     position: absolute;
     z-index: 3;
@@ -389,7 +398,6 @@ button {
     top: 0;
     width: 11%;
     aspect-ratio: 1;
-    will-change: transform;
     pointer-events: none;
     filter: drop-shadow(0 5px 5px rgba(54, 67, 110, 0.26));
     contain: layout paint;
@@ -413,7 +421,6 @@ button {
     top: 0;
     left: 0;
     width: 18%;
-    will-change: transform;
     pointer-events: none;
     filter: drop-shadow(0 7px 6px rgba(0, 0, 0, 0.3));
     contain: layout paint;
