@@ -361,6 +361,11 @@ button {
     height: 200%;
     will-change: transform;
     animation: sky-scroll 3s linear infinite;
+    animation-play-state: paused;
+}
+
+.play-screen.is-game-running .scrolling-background {
+    animation-play-state: running;
 }
 
 .scrolling-background::before,
@@ -390,7 +395,7 @@ button {
     background-repeat: no-repeat;
     background-size: 100% 100%;
     transform: translate3d(0, -101%, 0);
-    will-change: transform;
+    will-change: auto;
 }
 
 .stage-background.is-starting {
@@ -414,6 +419,19 @@ button {
 @keyframes finish-line-arrive {
     from { opacity: 0; }
     to { opacity: 1; }
+}
+
+.play-screen.is-game-running .stage-background.is-starting {
+    will-change: transform;
+}
+
+.play-screen.is-game-running .stage-background.is-finishing {
+    will-change: opacity;
+}
+
+.play-screen:not(.is-game-running) .stage-background {
+    animation-play-state: paused;
+    will-change: auto;
 }
 
 .game-hud {
@@ -873,6 +891,12 @@ button {
 }
 
 @media (hover: none), (pointer: coarse) {
+    .scrolling-background {
+        display: none;
+        animation: none;
+        will-change: auto;
+    }
+
     .coin,
     .obstacle,
     .character {

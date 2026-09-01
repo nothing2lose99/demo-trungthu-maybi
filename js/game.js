@@ -3,12 +3,14 @@
 
     const GAME_DURATION = 30;
     const FINISH_BACKGROUND_TIME = 1;
-    const WIN_TARGET = 100;
+    const WIN_TARGET = 50;
     const OPENING_RANDOM_INTERVAL = 260;
     const FAST_RANDOM_INTERVAL = 140;
     const WORLD_SCROLL_SPEED = 1.1;
-    const MAX_ACTIVE_COINS = 15;
+    const WORLD_REBASE_SCREENS = 2;
+    const MAX_ACTIVE_COINS = 5;
     const MAX_ACTIVE_OBSTACLES = 2;
+    const MAX_ACTIVE_SCORE_POPS = 6;
     const MAX_LIVES = 3;
     const DAMAGE_COOLDOWN = 1200;
     const OBSTACLE_INTERVAL = 2000;
@@ -17,7 +19,6 @@
         { src: "images/obstacle2.png", width: 172, height: 199 },
         { src: "images/obstacle3.png", width: 225, height: 210 }
     ];
-    const FRAME_INTERVAL = window.matchMedia("(pointer: coarse)").matches ? 1000 / 30 : 0;
     const GOOGLE_SCRIPT_URL = document.querySelector('meta[name="google-apps-script-url"]')?.content.trim() || "";
 
     const startScreen = document.querySelector("#startScreen");
@@ -67,6 +68,10 @@
     let keys = { left: false, right: false };
     let coins = [];
     let obstacles = [];
+    const coinElementPool = [];
+    const obstacleElementPool = [];
+    const scorePopElementPool = [];
+    const activeScorePops = new Set();
     let animationFrame = 0;
     let timerId = 0;
     let spawnId = 0;
@@ -110,6 +115,7 @@
         resetPhoneForm();
         startScreen.classList.remove("is-active");
         playScreen.classList.remove("is-active");
+        playScreen.classList.remove("is-game-running");
         playScreen.setAttribute("aria-hidden", "true");
         countdownScreen.classList.add("is-active");
         countdownScreen.setAttribute("aria-hidden", "false");
@@ -170,6 +176,7 @@
         countdownScreen.classList.remove("is-active");
         countdownScreen.setAttribute("aria-hidden", "true");
         playScreen.classList.add("is-active");
+        playScreen.classList.add("is-game-running");
         playScreen.setAttribute("aria-hidden", "false");
         showStartBackground();
 
@@ -211,6 +218,7 @@
     function endGame({ forceLoss = false } = {}) {
         if (!running) return;
         running = false;
+        playScreen.classList.remove("is-game-running");
         stopCollectMusic();
         stopGameLoops();
         character.classList.remove("is-moving", "is-hit");
@@ -238,16 +246,92 @@
     }
 
     function clearCoins() {
-        coins.forEach((coin) => coin.element.remove());
+        fallingLayer.querySelectorAll(".coin").forEach(releaseCoinElement);
         coins = [];
         worldOffset = 0;
         fallingLayer.style.transform = "translate3d(0, 0, 0)";
-        playfield.querySelectorAll(".score-pop").forEach((item) => item.remove());
+        playfield.querySelectorAll(".score-pop").forEach(releaseScorePopElement);
     }
 
     function clearObstacles() {
-        obstacles.forEach((obstacle) => obstacle.element.remove());
+        fallingLayer.querySelectorAll(".obstacle").forEach(releaseObstacleElement);
         obstacles = [];
+    }
+
+    function acquireCoinElement() {
+        const element = coinElementPool.pop() || document.createElement("div");
+        if (!element.isConnected) {
+            element.innerHTML = '<img src="images/cake.png" alt="" draggable="false">';
+            fallingLayer.appendChild(element);
+        }
+        window.clearTimeout(element._poolTimer);
+        element._poolTimer = 0;
+        element._isPooled = false;
+        element.className = "coin";
+        element.hidden = false;
+        return element;
+    }
+
+    function releaseCoinElement(element) {
+        if (element._isPooled) return;
+        window.clearTimeout(element._poolTimer);
+        element._poolTimer = 0;
+        element._isPooled = true;
+        element.className = "coin";
+        element.style.removeProperty("transform");
+        element.hidden = true;
+        coinElementPool.push(element);
+    }
+
+    function acquireObstacleElement(mode, asset) {
+        const element = obstacleElementPool.pop() || document.createElement("div");
+        if (!element.firstElementChild) {
+            element.innerHTML = `<img src="${asset.src}" alt="" draggable="false">`;
+        } else {
+            element.firstElementChild.src = asset.src;
+        }
+        if (!element.isConnected) fallingLayer.appendChild(element);
+        window.clearTimeout(element._poolTimer);
+        element._poolTimer = 0;
+        element._isPooled = false;
+        element.className = `obstacle obstacle--${mode}`;
+        element.hidden = false;
+        return element;
+    }
+
+    function releaseObstacleElement(element) {
+        if (element._isPooled) return;
+        window.clearTimeout(element._poolTimer);
+        element._poolTimer = 0;
+        element._isPooled = true;
+        element.className = "obstacle";
+        element.style.removeProperty("transform");
+        element.hidden = true;
+        obstacleElementPool.push(element);
+    }
+
+    function acquireScorePopElement() {
+        if (activeScorePops.size >= MAX_ACTIVE_SCORE_POPS) return null;
+        const element = scorePopElementPool.pop() || document.createElement("span");
+        if (!element.isConnected) playfield.appendChild(element);
+        window.clearTimeout(element._poolTimer);
+        element._poolTimer = 0;
+        element._isPooled = false;
+        element.className = "score-pop";
+        element.hidden = false;
+        activeScorePops.add(element);
+        return element;
+    }
+
+    function releaseScorePopElement(element) {
+        if (element._isPooled) return;
+        window.clearTimeout(element._poolTimer);
+        element._poolTimer = 0;
+        element._isPooled = true;
+        element.className = "score-pop";
+        element.hidden = true;
+        activeScorePops.delete(element);
+        scorePopElementPool.push(element);
     }
 
     function updateHearts() {
@@ -338,7 +422,7 @@
 
     function spawnCoin(options = {}) {
         if (!running) return;
-        if (fallingLayer.getElementsByClassName("coin").length >= MAX_ACTIVE_COINS) return;
+        if (coins.length >= MAX_ACTIVE_COINS) return;
         if (!metrics.width) refreshMetrics();
 
         const {
@@ -346,10 +430,7 @@
             ySteps = 0
         } = options;
 
-        const element = document.createElement("div");
-        element.className = "coin";
-        element.innerHTML = '<img src="images/cake.png" alt="" draggable="false">';
-        fallingLayer.appendChild(element);
+        const element = acquireCoinElement();
 
         const size = metrics.width * 0.11;
         const x = xPercent === null
@@ -389,7 +470,7 @@
     }
 
     function spawnObstacle(mode, waveIndex) {
-        if (fallingLayer.getElementsByClassName("obstacle").length >= MAX_ACTIVE_OBSTACLES) return;
+        if (obstacles.length >= MAX_ACTIVE_OBSTACLES) return;
 
         const asset = OBSTACLE_ASSETS[Math.floor(Math.random() * OBSTACLE_ASSETS.length)];
         const width = metrics.width * 0.18;
@@ -397,10 +478,7 @@
         const position = findSafeObstaclePosition(width, height, mode, waveIndex);
         if (!position) return;
 
-        const element = document.createElement("div");
-        element.className = `obstacle obstacle--${mode}`;
-        element.innerHTML = `<img src="${asset.src}" alt="" draggable="false">`;
-        fallingLayer.appendChild(element);
+        const element = acquireObstacleElement(mode, asset);
 
         const obstacle = {
             element,
@@ -457,16 +535,12 @@
     function update(now) {
         if (!running) return;
 
-        if (FRAME_INTERVAL && now - lastFrame < FRAME_INTERVAL) {
-            animationFrame = requestAnimationFrame(update);
-            return;
-        }
-
         const delta = Math.min((now - lastFrame) / 1000, 0.035);
         lastFrame = now;
         updateKeyboard(delta);
         renderCharacterPosition();
         worldOffset += metrics.height * WORLD_SCROLL_SPEED * delta;
+        rebaseWorldOffset();
         fallingLayer.style.transform = `translate3d(0, ${worldOffset}px, 0)`;
 
         const characterRect = getCharacterBounds();
@@ -491,7 +565,7 @@
         coins = coins.filter((coin) => {
             if (coin.collected) return false;
             if (coin.y + worldOffset > metrics.height + coin.size) {
-                coin.element.remove();
+                releaseCoinElement(coin.element);
                 return false;
             }
             return true;
@@ -500,6 +574,21 @@
         updateObstacles(characterRect);
 
         animationFrame = requestAnimationFrame(update);
+    }
+
+    function rebaseWorldOffset() {
+        if (!metrics.height || worldOffset < metrics.height * WORLD_REBASE_SCREENS) return;
+
+        const offset = worldOffset;
+        worldOffset = 0;
+        coins.forEach((coin) => {
+            coin.y += offset;
+            positionCoin(coin);
+        });
+        obstacles.forEach((obstacle) => {
+            obstacle.y += offset;
+            positionObstacle(obstacle);
+        });
     }
 
     function updateObstacles(characterRect) {
@@ -524,7 +613,7 @@
         obstacles = obstacles.filter((obstacle) => {
             if (obstacle.hit) return false;
             if (obstacle.y + worldOffset > metrics.height + obstacle.height) {
-                obstacle.element.remove();
+                releaseObstacleElement(obstacle.element);
                 return false;
             }
             return true;
@@ -537,7 +626,7 @@
         invulnerable = true;
         obstacle.hit = true;
         obstacle.element.classList.add("is-hit");
-        window.setTimeout(() => obstacle.element.remove(), 270);
+        obstacle.element._poolTimer = window.setTimeout(() => releaseObstacleElement(obstacle.element), 270);
 
         lives = Math.max(0, lives - 1);
         updateHearts();
@@ -557,15 +646,15 @@
         playCoinSound();
         scoreValue.textContent = String(score);
         coin.element.classList.add("is-collected");
-        window.setTimeout(() => coin.element.remove(), 190);
+        coin.element._poolTimer = window.setTimeout(() => releaseCoinElement(coin.element), 190);
 
-        const pop = document.createElement("span");
-        pop.className = "score-pop";
-        pop.textContent = "+1";
-        pop.style.left = `${x}px`;
-        pop.style.top = `${y}px`;
-        playfield.appendChild(pop);
-        window.setTimeout(() => pop.remove(), 680);
+        const pop = acquireScorePopElement();
+        if (pop) {
+            pop.textContent = "+1";
+            pop.style.left = `${x}px`;
+            pop.style.top = `${y}px`;
+            pop._poolTimer = window.setTimeout(() => releaseScorePopElement(pop), 680);
+        }
 
     }
 
