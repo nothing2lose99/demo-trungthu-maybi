@@ -21,6 +21,7 @@
         { src: "images/obstacle2.png", width: 172, height: 199 },
         { src: "images/obstacle3.png", width: 225, height: 210 }
     ];
+    const MOBILE_PERFORMANCE_MODE = window.matchMedia("(hover: none), (pointer: coarse)").matches;
     const GOOGLE_SCRIPT_URL = document.querySelector('meta[name="google-apps-script-url"]')?.content.trim() || "";
 
     const startScreen = document.querySelector("#startScreen");
@@ -30,7 +31,7 @@
     const coinSound = document.querySelector("#coinSound");
     const collectMusic = document.querySelector("#collectMusic");
     const gameSuccessSound = document.querySelector("#gameSuccessSound");
-    const coinSoundPool = [coinSound, ...Array.from({ length: 5 }, () => coinSound.cloneNode())];
+    const coinSoundPool = [coinSound, coinSound.cloneNode()];
     const playScreen = document.querySelector("#playScreen");
     const stageBackground = document.querySelector("#stageBackground");
     const startButton = document.querySelector("#startButton");
@@ -80,6 +81,7 @@
     let obstacleId = 0;
     let cakePauseUntil = 0;
     let obstacleSpawnTimer = 0;
+    let stageCleanupTimer = 0;
     let countdownTimers = [];
     let lastFrame = 0;
     let gameStartedAt = 0;
@@ -146,6 +148,7 @@
     function clearCountdown() {
         countdownTimers.forEach((timer) => window.clearTimeout(timer));
         countdownTimers = [];
+        countdownImage.classList.remove("is-popping", "is-go");
     }
 
     function startGame() {
@@ -205,16 +208,29 @@
     }
 
     function showStartBackground() {
+        window.clearTimeout(stageCleanupTimer);
         stageBackground.className = "stage-background";
         void stageBackground.offsetWidth;
         stageBackground.classList.add("is-starting");
+        stageCleanupTimer = window.setTimeout(releaseStartBackground, 5100);
     }
 
     function showFinishBackground() {
+        window.clearTimeout(stageCleanupTimer);
         stageBackground.className = "stage-background";
         void stageBackground.offsetWidth;
         stageBackground.classList.add("is-finishing");
     }
+
+    function releaseStartBackground() {
+        window.clearTimeout(stageCleanupTimer);
+        stageCleanupTimer = 0;
+        stageBackground.classList.remove("is-starting");
+    }
+
+    stageBackground.addEventListener("animationend", (event) => {
+        if (event.animationName === "start-gate-pass") releaseStartBackground();
+    });
 
     function endGame({ forceLoss = false } = {}) {
         if (!running) return;
@@ -658,7 +674,7 @@
         coin.element.classList.add("is-collected");
         coin.element._poolTimer = window.setTimeout(() => releaseCoinElement(coin.element), 190);
 
-        const pop = acquireScorePopElement();
+        const pop = MOBILE_PERFORMANCE_MODE ? null : acquireScorePopElement();
         if (pop) {
             pop.textContent = "+1";
             pop.style.left = `${x}px`;

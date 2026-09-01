@@ -324,6 +324,7 @@ button {
     display: grid;
     place-items: center;
     background: #082c5d url("../images/GameBG1.jpg") center bottom / cover no-repeat;
+    transition: none;
 }
 
 .countdown-image {
@@ -331,7 +332,7 @@ button {
     width: 31%;
     max-height: 43%;
     object-fit: contain;
-    filter: drop-shadow(0 10px 16px rgba(0, 0, 0, 0.42));
+    background: transparent;
 }
 
 .countdown-image.is-go {
@@ -518,7 +519,7 @@ button {
     inset: 0;
     pointer-events: none;
     will-change: transform;
-    contain: layout style;
+    contain: layout paint style;
 }
 
 .character {
@@ -906,6 +907,10 @@ button {
     .coin,
     .obstacle {
         will-change: auto;
+    }
+
+    .character.is-moving {
+        animation: none;
     }
 
 }
