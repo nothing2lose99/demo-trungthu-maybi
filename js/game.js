@@ -9,7 +9,7 @@
     const WORLD_SCROLL_SPEED = 1.1;
     const WORLD_REBASE_SCREENS = 2;
     const MAX_ACTIVE_COINS = 4;
-    const MAX_ACTIVE_OBSTACLES = 2;
+    const MAX_ACTIVE_OBSTACLES = 1;
     const MAX_ACTIVE_SCORE_POPS = 6;
     const MAX_LIVES = 3;
     const DAMAGE_COOLDOWN = 1200;
@@ -388,7 +388,7 @@
 
         const size = metrics.width * 0.11;
         const x = xPercent === null
-            ? size / 2 + Math.random() * (metrics.width - size)
+            ? findSpreadCakeX(size)
             : metrics.width * (xPercent / 100);
         const y = -size * (1 + ySteps) - worldOffset;
         const screenTop = y + worldOffset;
@@ -404,6 +404,31 @@
         };
         coins.push(coin);
         positionCoin(coin);
+    }
+
+    function findSpreadCakeX(size) {
+        const minX = size / 2;
+        const availableWidth = metrics.width - size;
+        const nearbyCoins = coins.filter((coin) =>
+            !coin.collected && coin.y + worldOffset < metrics.height * 0.55
+        );
+
+        if (nearbyCoins.length === 0) {
+            return minX + Math.random() * availableWidth;
+        }
+
+        let bestX = minX;
+        let bestDistance = -1;
+        for (let attempt = 0; attempt < 16; attempt += 1) {
+            const candidateX = minX + Math.random() * availableWidth;
+            const closestDistance = Math.min(...nearbyCoins.map((coin) => Math.abs(candidateX - coin.x)));
+            if (closestDistance > bestDistance) {
+                bestX = candidateX;
+                bestDistance = closestDistance;
+            }
+        }
+
+        return bestX;
     }
 
     function positionCoin(coin) {
@@ -423,7 +448,6 @@
         const elapsed = (performance.now() - gameStartedAt) / 1000;
         const mode = getObstacleMode(elapsed);
         spawnObstacle(mode, 0);
-        spawnObstacle(mode, 1);
     }
 
     function getObstacleMode(elapsed) {
@@ -470,9 +494,7 @@
         if (overlapsCoinBand) return null;
 
         for (let attempt = 0; attempt < 32; attempt += 1) {
-            const laneStart = waveIndex === 0 ? width / 2 : fieldWidth / 2 + width / 2;
-            const laneEnd = waveIndex === 0 ? fieldWidth / 2 - width / 2 : fieldWidth - width / 2;
-            const x = laneStart + Math.random() * Math.max(laneEnd - laneStart, 0);
+            const x = width / 2 + Math.random() * (fieldWidth - width);
             const candidate = { left: x - width / 2, right: x + width / 2, top: y, bottom: y + height };
 
             const overlapsCoin = coins.some((coin) => !coin.collected && rectsOverlap(candidate, {
