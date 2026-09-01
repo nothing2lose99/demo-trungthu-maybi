@@ -323,7 +323,7 @@ button {
     z-index: 4;
     display: grid;
     place-items: center;
-    background: url("../images/trungthu-background-dark.webp") center / 100% 100% no-repeat;
+    background: #082c5d url("../images/GameBG1.jpg") center bottom / cover no-repeat;
 }
 
 .countdown-image {
