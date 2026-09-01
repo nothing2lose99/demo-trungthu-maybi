@@ -575,12 +575,6 @@ button {
     width: 100%;
 }
 
-.coin.is-collected {
-    transition: opacity 180ms ease, scale 180ms ease;
-    opacity: 0;
-    scale: 1.8;
-}
-
 .obstacle {
     position: absolute;
     z-index: 2;

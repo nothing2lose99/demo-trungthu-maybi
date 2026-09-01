@@ -671,8 +671,7 @@
         score += 1;
         playCoinSound();
         scoreValue.textContent = String(score);
-        coin.element.classList.add("is-collected");
-        coin.element._poolTimer = window.setTimeout(() => releaseCoinElement(coin.element), 190);
+        releaseCoinElement(coin.element);
 
         const pop = MOBILE_PERFORMANCE_MODE ? null : acquireScorePopElement();
         if (pop) {
