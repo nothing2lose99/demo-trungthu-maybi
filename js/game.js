@@ -4,16 +4,18 @@
     const GAME_DURATION = 30;
     const FINISH_BACKGROUND_TIME = 1;
     const WIN_TARGET = 50;
-    const OPENING_RANDOM_INTERVAL = 260;
-    const FAST_RANDOM_INTERVAL = 140;
+    const CAKE_SPAWN_DELAY_MIN = 220;
+    const CAKE_SPAWN_DELAY_MAX = 310;
     const WORLD_SCROLL_SPEED = 1.1;
     const WORLD_REBASE_SCREENS = 2;
-    const MAX_ACTIVE_COINS = 5;
+    const MAX_ACTIVE_COINS = 4;
     const MAX_ACTIVE_OBSTACLES = 2;
     const MAX_ACTIVE_SCORE_POPS = 6;
     const MAX_LIVES = 3;
     const DAMAGE_COOLDOWN = 1200;
-    const OBSTACLE_INTERVAL = 2000;
+    const OBSTACLE_INTERVAL = 3000;
+    const OBSTACLE_CLEARING_TIME = 600;
+    const OBSTACLE_ISOLATION_SCREEN_GAP = 0.12;
     const OBSTACLE_ASSETS = [
         { src: "images/obstacle1.png", width: 170, height: 112 },
         { src: "images/obstacle2.png", width: 172, height: 199 },
@@ -76,8 +78,8 @@
     let timerId = 0;
     let spawnId = 0;
     let obstacleId = 0;
-    let obstacleWave = 0;
-    let patternTimers = [];
+    let cakePauseUntil = 0;
+    let obstacleSpawnTimer = 0;
     let countdownTimers = [];
     let lastFrame = 0;
     let gameStartedAt = 0;
@@ -157,7 +159,7 @@
         characterX = 50;
         lives = MAX_LIVES;
         invulnerable = false;
-        obstacleWave = 0;
+        cakePauseUntil = 0;
         characterPositionDirty = true;
         scoreValue.textContent = "0";
         timerValue.textContent = String(timeLeft);
@@ -187,9 +189,8 @@
         lastFrame = performance.now();
         gameStartedAt = lastFrame;
         spawnCoin();
-        spawnId = window.setInterval(spawnCoin, OPENING_RANDOM_INTERVAL);
-        obstacleId = window.setInterval(spawnObstacleWave, OBSTACLE_INTERVAL);
-        scheduleCoinSequence();
+        scheduleNextCake();
+        obstacleId = window.setInterval(prepareObstacleWave, OBSTACLE_INTERVAL);
         timerId = window.setInterval(tickTimer, 1000);
         hintTimer = window.setTimeout(() => controlHint.classList.add("is-hidden"), 2600);
         animationFrame = requestAnimationFrame(update);
@@ -236,12 +237,11 @@
 
     function stopGameLoops() {
         window.clearInterval(timerId);
-        window.clearInterval(spawnId);
+        window.clearTimeout(spawnId);
         window.clearInterval(obstacleId);
         window.clearTimeout(hintTimer);
         window.clearTimeout(damageTimer);
-        patternTimers.forEach((timer) => window.clearTimeout(timer));
-        patternTimers = [];
+        window.clearTimeout(obstacleSpawnTimer);
         cancelAnimationFrame(animationFrame);
     }
 
@@ -363,66 +363,22 @@
         };
     }
 
-    function scheduleCoinSequence() {
-        schedulePattern(5000, () => {
-            window.clearInterval(spawnId);
-            spawnColumn(22, 5);
-        });
-        schedulePattern(6000, () => spawnColumn(78, 5));
-        schedulePattern(7000, () => spawnDiagonal(10));
-        schedulePattern(8000, () => spawnFastRandomBurst(5));
-        schedulePattern(9000, () => spawnZigzag(10));
-        schedulePattern(10000, () => {
+    function scheduleNextCake() {
+        if (!running) return;
+
+        const delay = CAKE_SPAWN_DELAY_MIN +
+            Math.random() * (CAKE_SPAWN_DELAY_MAX - CAKE_SPAWN_DELAY_MIN);
+        spawnId = window.setTimeout(() => {
+            if (!running) return;
             spawnCoin();
-            spawnId = window.setInterval(spawnCoin, FAST_RANDOM_INTERVAL);
-        });
-    }
-
-    function schedulePattern(delay, callback) {
-        const timer = window.setTimeout(() => {
-            if (running) callback();
+            scheduleNextCake();
         }, delay);
-        patternTimers.push(timer);
-    }
-
-    function spawnColumn(xPercent, count) {
-        for (let index = 0; index < count; index += 1) {
-            spawnCoin({
-                xPercent,
-                ySteps: index * 1.22
-            });
-        }
-    }
-
-    function spawnDiagonal(count) {
-        for (let index = 0; index < count; index += 1) {
-            spawnCoin({
-                xPercent: 15 + (70 * index) / (count - 1),
-                ySteps: index * 1.08
-            });
-        }
-    }
-
-    function spawnFastRandomBurst(count) {
-        for (let index = 0; index < count; index += 1) {
-            spawnCoin({
-                ySteps: index * 0.72
-            });
-        }
-    }
-
-    function spawnZigzag(count) {
-        for (let index = 0; index < count; index += 1) {
-            spawnCoin({
-                xPercent: index % 2 === 0 ? 22 : 78,
-                ySteps: index * 1.08
-            });
-        }
     }
 
     function spawnCoin(options = {}) {
         if (!running) return;
         if (coins.length >= MAX_ACTIVE_COINS) return;
+        if (performance.now() < cakePauseUntil) return;
         if (!metrics.width) refreshMetrics();
 
         const {
@@ -430,16 +386,19 @@
             ySteps = 0
         } = options;
 
-        const element = acquireCoinElement();
-
         const size = metrics.width * 0.11;
         const x = xPercent === null
             ? size / 2 + Math.random() * (metrics.width - size)
             : metrics.width * (xPercent / 100);
+        const y = -size * (1 + ySteps) - worldOffset;
+        const screenTop = y + worldOffset;
+        if (isNearActiveObstacle(screenTop, screenTop + size)) return;
+
+        const element = acquireCoinElement();
         const coin = {
             element,
             x,
-            y: -size * (1 + ySteps) - worldOffset,
+            y,
             size,
             collected: false
         };
@@ -451,17 +410,20 @@
         coin.element.style.transform = `translate3d(${coin.x - coin.size / 2}px, ${coin.y}px, 0)`;
     }
 
-    function spawnObstacleWave() {
-        if (!running) return;
+    function prepareObstacleWave() {
+        if (!running || obstacles.length >= MAX_ACTIVE_OBSTACLES) return;
 
-        obstacleWave += 1;
-        const count = obstacleWave % 2 === 1 ? 1 : 2;
+        cakePauseUntil = performance.now() + OBSTACLE_CLEARING_TIME;
+        obstacleSpawnTimer = window.setTimeout(spawnObstacleWave, OBSTACLE_CLEARING_TIME);
+    }
+
+    function spawnObstacleWave() {
+        if (!running || obstacles.length >= MAX_ACTIVE_OBSTACLES) return;
+
         const elapsed = (performance.now() - gameStartedAt) / 1000;
         const mode = getObstacleMode(elapsed);
-
-        for (let index = 0; index < count; index += 1) {
-            spawnObstacle(mode, index);
-        }
+        spawnObstacle(mode, 0);
+        spawnObstacle(mode, 1);
     }
 
     function getObstacleMode(elapsed) {
@@ -495,11 +457,22 @@
 
     function findSafeObstaclePosition(width, height, mode, waveIndex) {
         const fieldWidth = metrics.width;
-        const fieldHeight = metrics.height;
+        const y = -height * (1 + waveIndex * 0.25);
+        const isolationGap = metrics.height * OBSTACLE_ISOLATION_SCREEN_GAP;
+        const overlapsCoinBand = coins.some((coin) => !coin.collected && verticalRangesOverlap(
+            y,
+            y + height,
+            coin.y + worldOffset,
+            coin.y + worldOffset + coin.size,
+            isolationGap
+        ));
+
+        if (overlapsCoinBand) return null;
 
         for (let attempt = 0; attempt < 32; attempt += 1) {
-            const x = width / 2 + Math.random() * (fieldWidth - width);
-            const y = -height * (1 + waveIndex * 0.25);
+            const laneStart = waveIndex === 0 ? width / 2 : fieldWidth / 2 + width / 2;
+            const laneEnd = waveIndex === 0 ? fieldWidth / 2 - width / 2 : fieldWidth - width / 2;
+            const x = laneStart + Math.random() * Math.max(laneEnd - laneStart, 0);
             const candidate = { left: x - width / 2, right: x + width / 2, top: y, bottom: y + height };
 
             const overlapsCoin = coins.some((coin) => !coin.collected && rectsOverlap(candidate, {
@@ -519,6 +492,21 @@
         }
 
         return null;
+    }
+
+    function isNearActiveObstacle(top, bottom) {
+        const isolationGap = metrics.height * OBSTACLE_ISOLATION_SCREEN_GAP;
+        return obstacles.some((obstacle) => !obstacle.hit && verticalRangesOverlap(
+            top,
+            bottom,
+            obstacle.y + worldOffset,
+            obstacle.y + worldOffset + obstacle.height,
+            isolationGap
+        ));
+    }
+
+    function verticalRangesOverlap(firstTop, firstBottom, secondTop, secondBottom, gap = 0) {
+        return firstTop < secondBottom + gap && firstBottom > secondTop - gap;
     }
 
     function rectsOverlap(first, second, padding = 0) {
