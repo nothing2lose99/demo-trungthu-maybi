@@ -130,27 +130,129 @@ button {
 
 .start-screen {
     z-index: 5;
-    background: url("../images/start-screen-background.webp") center / 100% 100% no-repeat;
+    overflow: hidden;
+    background: url("../images/maybi-trungthu-start-screen.png") center / 100% 100% no-repeat;
 }
 
-.start-screen::after {
-    content: "";
+.start-lantern,
+.start-rabbit {
     position: absolute;
-    inset: auto 0 0;
-    height: 25%;
+    overflow: hidden;
     pointer-events: none;
-    background: linear-gradient(to top, rgba(4, 8, 27, 0.32), transparent);
+    animation-play-state: paused;
 }
 
-.brand-logo {
-    position: absolute;
+.start-screen.is-active .start-lantern,
+.start-screen.is-active .start-rabbit {
+    animation-play-state: running;
+    will-change: transform;
+}
+
+.start-lantern {
     z-index: 1;
-    top: max(2%, env(safe-area-inset-top));
-    left: 50%;
-    width: 24%;
+    aspect-ratio: 297 / 338;
+    transform-origin: 50% 18%;
+    animation: start-lantern-float var(--float-duration, 3.8s) ease-in-out infinite;
+    animation-delay: var(--float-delay, 0s);
+}
+
+.start-lantern img {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    max-width: none;
     height: auto;
-    transform: translateX(-50%);
-    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.42));
+    pointer-events: none;
+}
+
+.start-lantern--top-left {
+    top: 18%;
+    left: 3%;
+    width: 8.5%;
+    --lantern-rotate: -8deg;
+    --float-x: 7%;
+    --float-y: -10%;
+    --float-duration: 3.4s;
+    --float-delay: -1.1s;
+}
+
+.start-lantern--top-right {
+    top: 8%;
+    right: 8%;
+    width: 8.5%;
+    --lantern-rotate: 7deg;
+    --float-x: -6%;
+    --float-y: -12%;
+    --float-duration: 3.9s;
+    --float-delay: -2.6s;
+}
+
+.start-lantern--middle-left {
+    top: 55%;
+    left: -2%;
+    width: 18%;
+    --lantern-rotate: -7deg;
+    --float-x: 5%;
+    --float-y: -7%;
+    --float-duration: 4.3s;
+    --float-delay: -2s;
+}
+
+.start-lantern--middle-right {
+    top: 54%;
+    right: -1%;
+    width: 16%;
+    --lantern-rotate: 8deg;
+    --float-x: -5%;
+    --float-y: -8%;
+    --float-duration: 3.7s;
+    --float-delay: -0.7s;
+}
+
+@keyframes start-lantern-float {
+    0%, 100% {
+        transform: translate3d(0, 0, 0) rotate(var(--lantern-rotate, 0deg));
+    }
+    50% {
+        transform: translate3d(var(--float-x, 0), var(--float-y, -8%), 0) rotate(calc(var(--lantern-rotate, 0deg) + 2deg));
+    }
+}
+
+.start-rabbit {
+    z-index: 2;
+    top: 49%;
+    left: 50%;
+    width: 70%;
+    aspect-ratio: 850 / 965;
+    transform: translate3d(-50%, 0, 0);
+    animation: start-rabbit-float 4.2s ease-in-out -1.4s infinite;
+}
+
+.start-rabbit img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    max-width: none;
+    height: auto;
+    pointer-events: none;
+}
+
+@keyframes start-rabbit-float {
+    0%, 100% {
+        transform: translate3d(-50%, 0, 0) rotate(-0.8deg);
+    }
+    50% {
+        transform: translate3d(-50%, -2.5%, 0) rotate(0.8deg);
+    }
+}
+
+.start-screen:not(.is-active) .start-lantern,
+.start-screen:not(.is-active) .start-rabbit {
+    animation-play-state: paused;
+    will-change: auto;
 }
 
 .image-button {
@@ -201,9 +303,9 @@ button {
 
 .start-button {
     position: absolute;
-    z-index: 2;
+    z-index: 4;
     right: 19%;
-    bottom: max(5%, env(safe-area-inset-bottom));
+    bottom: max(3.5%, env(safe-area-inset-bottom));
     left: 19%;
     width: 62%;
     margin: auto;
@@ -249,11 +351,12 @@ button {
 .play-screen {
     z-index: 2;
     overflow: hidden;
-    background: #4dc7ff url("../images/trungthu-background-dark.webp") center / 100% 100% no-repeat;
+    background: #082c5d url("../images/GameBG2.jpg") center / 100% 100% no-repeat;
 }
 
 .scrolling-background {
     position: absolute;
+    z-index: 0;
     inset: -100% 0 auto;
     height: 200%;
     will-change: transform;
@@ -267,7 +370,7 @@ button {
     right: 0;
     left: 0;
     height: 50%;
-    background: url("../images/trungthu-background-dark.webp") center / 100% 100% no-repeat;
+    background: url("../images/GameBG2.jpg") center / 100% 100% no-repeat;
 }
 
 .scrolling-background::before { top: 0; }
@@ -276,6 +379,41 @@ button {
 @keyframes sky-scroll {
     from { transform: translate3d(0, 0, 0); }
     to { transform: translate3d(0, 50%, 0); }
+}
+
+.stage-background {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    pointer-events: none;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    transform: translate3d(0, -101%, 0);
+    will-change: transform;
+}
+
+.stage-background.is-starting {
+    background-image: url("../images/GameBG1.jpg");
+    animation: start-gate-pass 5s linear forwards;
+}
+
+.stage-background.is-finishing {
+    background-image: url("../images/GameBG3.jpg");
+    background-position: center top;
+    background-size: cover;
+    transform: translate3d(0, 0, 0);
+    animation: finish-line-arrive 500ms ease-out forwards;
+}
+
+@keyframes start-gate-pass {
+    from { transform: translate3d(0, 0, 0); }
+    to { transform: translate3d(0, 101%, 0); }
+}
+
+@keyframes finish-line-arrive {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .game-hud {
@@ -407,7 +545,7 @@ button {
     z-index: 2;
     top: 0;
     width: 11%;
-    aspect-ratio: 1;
+    aspect-ratio: 812 / 839;
     pointer-events: none;
     filter: drop-shadow(0 5px 5px rgba(54, 67, 110, 0.26));
     contain: layout paint;
@@ -416,7 +554,6 @@ button {
 .coin img {
     display: block;
     width: 100%;
-    animation: coin-spin 760ms linear infinite;
 }
 
 .coin.is-collected {
@@ -447,11 +584,6 @@ button {
 
 @keyframes obstacle-hit {
     to { opacity: 0; scale: 1.35; rotate: 18deg; }
-}
-
-@keyframes coin-spin {
-    0%, 100% { transform: rotate(-7deg) scaleX(1); }
-    50% { transform: rotate(7deg) scaleX(0.72); }
 }
 
 .score-pop {
@@ -752,9 +884,6 @@ button {
         will-change: auto;
     }
 
-    .coin img {
-        animation: none;
-    }
 }
 
 @media (min-width: 768px) {

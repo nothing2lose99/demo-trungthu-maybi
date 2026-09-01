@@ -1,7 +1,8 @@
 (() => {
     "use strict";
 
-    const GAME_DURATION = 40;
+    const GAME_DURATION = 30;
+    const FINISH_BACKGROUND_TIME = 1;
     const WIN_TARGET = 100;
     const OPENING_RANDOM_INTERVAL = 260;
     const FAST_RANDOM_INTERVAL = 140;
@@ -11,6 +12,11 @@
     const MAX_LIVES = 3;
     const DAMAGE_COOLDOWN = 1200;
     const OBSTACLE_INTERVAL = 2000;
+    const OBSTACLE_ASSETS = [
+        { src: "images/obstacle1.png", width: 170, height: 112 },
+        { src: "images/obstacle2.png", width: 172, height: 199 },
+        { src: "images/obstacle3.png", width: 225, height: 210 }
+    ];
     const FRAME_INTERVAL = window.matchMedia("(pointer: coarse)").matches ? 1000 / 30 : 0;
     const GOOGLE_SCRIPT_URL = document.querySelector('meta[name="google-apps-script-url"]')?.content.trim() || "";
 
@@ -23,6 +29,7 @@
     const gameSuccessSound = document.querySelector("#gameSuccessSound");
     const coinSoundPool = [coinSound, ...Array.from({ length: 5 }, () => coinSound.cloneNode())];
     const playScreen = document.querySelector("#playScreen");
+    const stageBackground = document.querySelector("#stageBackground");
     const startButton = document.querySelector("#startButton");
     const replayButton = document.querySelector("#replayButton");
     const playfield = document.querySelector("#playfield");
@@ -164,6 +171,7 @@
         countdownScreen.setAttribute("aria-hidden", "true");
         playScreen.classList.add("is-active");
         playScreen.setAttribute("aria-hidden", "false");
+        showStartBackground();
 
         refreshMetrics();
         renderCharacterPosition();
@@ -184,7 +192,20 @@
         if (!running) return;
         timeLeft -= 1;
         timerValue.textContent = String(Math.max(timeLeft, 0));
+        if (timeLeft === FINISH_BACKGROUND_TIME) showFinishBackground();
         if (timeLeft <= 0) endGame();
+    }
+
+    function showStartBackground() {
+        stageBackground.className = "stage-background";
+        void stageBackground.offsetWidth;
+        stageBackground.classList.add("is-starting");
+    }
+
+    function showFinishBackground() {
+        stageBackground.className = "stage-background";
+        void stageBackground.offsetWidth;
+        stageBackground.classList.add("is-finishing");
     }
 
     function endGame({ forceLoss = false } = {}) {
@@ -242,7 +263,7 @@
         const width = playfieldRect.width;
         const height = playfieldRect.height;
         const characterWidth = character.offsetWidth || width * 0.25;
-        const characterHeight = character.offsetHeight || characterWidth * (497 / 417);
+        const characterHeight = character.offsetHeight || characterWidth * (965 / 850);
         metrics = { left, width, height, characterWidth, characterHeight };
         characterPositionDirty = true;
     }
@@ -327,7 +348,7 @@
 
         const element = document.createElement("div");
         element.className = "coin";
-        element.innerHTML = '<img src="images/coin.webp" alt="" draggable="false">';
+        element.innerHTML = '<img src="images/cake.png" alt="" draggable="false">';
         fallingLayer.appendChild(element);
 
         const size = metrics.width * 0.11;
@@ -370,14 +391,15 @@
     function spawnObstacle(mode, waveIndex) {
         if (fallingLayer.getElementsByClassName("obstacle").length >= MAX_ACTIVE_OBSTACLES) return;
 
+        const asset = OBSTACLE_ASSETS[Math.floor(Math.random() * OBSTACLE_ASSETS.length)];
         const width = metrics.width * 0.18;
-        const height = width * (525 / 689);
+        const height = width * (asset.height / asset.width);
         const position = findSafeObstaclePosition(width, height, mode, waveIndex);
         if (!position) return;
 
         const element = document.createElement("div");
         element.className = `obstacle obstacle--${mode}`;
-        element.innerHTML = '<img src="images/obstacle.webp" alt="" draggable="false">';
+        element.innerHTML = `<img src="${asset.src}" alt="" draggable="false">`;
         fallingLayer.appendChild(element);
 
         const obstacle = {
