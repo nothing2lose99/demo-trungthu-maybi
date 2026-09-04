@@ -4,12 +4,15 @@
     const GAME_DURATION = 30;
     const FINISH_BACKGROUND_TIME = 1;
     const WIN_TARGET = 50;
+    const REWARD_MIN_SCORE = 20;
+    const VOUCHER_CODE = "MAYBI50K";
     const CAKE_SPAWN_DELAY_MIN = 220;
     const CAKE_SPAWN_DELAY_MAX = 310;
-    const WORLD_SCROLL_SPEED = 1.1;
+    const WORLD_SCROLL_SPEED = 1.1 / 1.5;
     const WORLD_REBASE_SCREENS = 2;
     const MAX_ACTIVE_COINS = 4;
-    const MAX_ACTIVE_OBSTACLES = 1;
+    const OBSTACLES_PER_WAVE = 2;
+    const MAX_ACTIVE_OBSTACLES = OBSTACLES_PER_WAVE;
     const MAX_ACTIVE_SCORE_POPS = 6;
     const MAX_LIVES = 3;
     const DAMAGE_COOLDOWN = 1200;
@@ -20,6 +23,22 @@
         { src: "images/obstacle1.png", width: 170, height: 112 },
         { src: "images/obstacle2.png", width: 172, height: 199 },
         { src: "images/obstacle3.png", width: 225, height: 210 }
+    ];
+    const PRODUCT_REWARDS = [
+        { src: "images/deal/ao-thun-bet-vai.webp", name: "ÁO THUN BỆT VAI" },
+        { src: "images/deal/chan-vay-xoe-cottom.webp", name: "CHÂN VÁY XÒE COTTON" },
+        { src: "images/deal/dam-caro-somi.webp", name: "ĐẦM CARO SƠ MI" },
+        { src: "images/deal/dam-om-bet-vai.webp", name: "ĐẦM ÔM BỆT VAI" },
+        { src: "images/deal/dam-om-sat-nach.webp", name: "ĐẦM ÔM SÁT NÁCH" },
+        { src: "images/deal/dam-polo-thun-den.webp", name: "ĐẦM POLO THUN ĐEN" },
+        { src: "images/deal/dam-poplum-phoi-ren.webp", name: "ĐẦM PEPLUM PHỐI REN" },
+        { src: "images/deal/dam-ren-cai-hoa.webp", name: "ĐẦM REN CÀI HOA" },
+        { src: "images/deal/dam-ren-dai-tay.webp", name: "ĐẦM REN DÀI TAY" },
+        { src: "images/deal/dam-thun-ba-lo.webp", name: "ĐẦM THUN BA LỖ" },
+        { src: "images/deal/dam-xoe-theu-luoi.webp", name: "ĐẦM XÒE THÊU LƯỚI" },
+        { src: "images/deal/quan-kaki-ong-suong.webp", name: "QUẦN KAKI ỐNG SUÔNG" },
+        { src: "images/deal/set-do-phoi-beo.webp", name: "SET ĐỒ PHỐI BÈO" },
+        { src: "images/deal/set-so-mi-chan-vay.webp", name: "SET SƠ MI CHÂN VÁY" }
     ];
     const MOBILE_PERFORMANCE_MODE = window.matchMedia("(hover: none), (pointer: coarse)").matches;
     const GOOGLE_SCRIPT_URL = document.querySelector('meta[name="google-apps-script-url"]')?.content.trim() || "";
@@ -35,6 +54,8 @@
     const playScreen = document.querySelector("#playScreen");
     const stageBackground = document.querySelector("#stageBackground");
     const startButton = document.querySelector("#startButton");
+    const howToOverlay = document.querySelector("#howToOverlay");
+    const closeHowToButton = document.querySelector("#closeHowToButton");
     const replayButton = document.querySelector("#replayButton");
     const playfield = document.querySelector("#playfield");
     const fallingLayer = document.querySelector("#fallingLayer");
@@ -46,7 +67,20 @@
     const resultMessage = document.querySelector("#resultMessage");
     const resultOverlay = document.querySelector("#resultOverlay");
     const claimButton = document.querySelector("#claimButton");
+    const voucherOverlay = document.querySelector("#voucherOverlay");
+    const voucherCopyStatus = document.querySelector("#voucherCopyStatus");
+    const copyVoucherButton = document.querySelector("#copyVoucherButton");
+    const voucherNextButton = document.querySelector("#voucherNextButton");
+    const productOverlay = document.querySelector("#productOverlay");
+    const productImage = document.querySelector("#productImage");
+    const productName = document.querySelector("#productName");
+    const productCounter = document.querySelector("#productCounter");
+    const previousProductButton = document.querySelector("#previousProductButton");
+    const nextProductButton = document.querySelector("#nextProductButton");
+    const selectProductButton = document.querySelector("#selectProductButton");
     const phoneOverlay = document.querySelector("#phoneOverlay");
+    const phoneTitle = document.querySelector("#phoneTitle");
+    const phoneDescription = document.querySelector("#phoneDescription");
     const phoneForm = document.querySelector("#phoneForm");
     const phoneInput = document.querySelector("#phoneInput");
     const phoneMessage = document.querySelector("#phoneMessage");
@@ -90,7 +124,9 @@
     let coinSoundIndex = 0;
     let worldOffset = 0;
     let characterPositionDirty = true;
-    let lastResultWasWin = false;
+    let activeRewardType = null;
+    let selectedProductIndex = 0;
+    let selectedProductName = "";
     let isSubmittingPhone = false;
     let metrics = {
         left: 0,
@@ -108,6 +144,7 @@
         clearCoins();
         clearObstacles();
         clearCountdown();
+        resetRewardFlow();
 
         resultOverlay.classList.remove("is-visible");
         resultOverlay.setAttribute("aria-hidden", "true");
@@ -115,6 +152,8 @@
         phoneOverlay.setAttribute("aria-hidden", "true");
         actionOverlay.classList.remove("is-visible");
         actionOverlay.setAttribute("aria-hidden", "true");
+        howToOverlay.classList.remove("is-visible");
+        howToOverlay.setAttribute("aria-hidden", "true");
         claimButton.hidden = true;
         resetPhoneForm();
         startScreen.classList.remove("is-active");
@@ -239,16 +278,20 @@
         stopCollectMusic();
         stopGameLoops();
         character.classList.remove("is-moving", "is-hit");
-        const didWin = !forceLoss && score >= WIN_TARGET;
-        lastResultWasWin = didWin;
-        claimButton.hidden = !didWin;
-        if (didWin) playGameSuccessSound();
-        resultTitle.textContent = didWin ? "CHÚC MỪNG!" : "THẤT BẠI!";
+        activeRewardType = score >= WIN_TARGET
+            ? "product"
+            : score >= REWARD_MIN_SCORE
+                ? "voucher"
+                : null;
+        const hasReward = activeRewardType !== null;
+        claimButton.hidden = !hasReward;
+        if (hasReward) playGameSuccessSound();
+        resultTitle.textContent = hasReward ? "CHÚC MỪNG!" : forceLoss ? "HẾT MẠNG!" : "THẤT BẠI!";
         resultMessage.textContent = "Bạn đã thu thập được";
         finalScore.textContent = String(score);
         resultOverlay.classList.add("is-visible");
         resultOverlay.setAttribute("aria-hidden", "false");
-        window.setTimeout(() => replayButton.focus(), 320);
+        window.setTimeout(() => (hasReward ? claimButton : replayButton).focus(), 320);
     }
 
     function stopGameLoops() {
@@ -463,7 +506,9 @@
 
         const elapsed = (performance.now() - gameStartedAt) / 1000;
         const mode = getObstacleMode(elapsed);
-        spawnObstacle(mode, 0);
+        for (let waveIndex = 0; waveIndex < OBSTACLES_PER_WAVE; waveIndex += 1) {
+            spawnObstacle(mode, waveIndex);
+        }
     }
 
     function getObstacleMode(elapsed) {
@@ -723,10 +768,105 @@
         if (playPromise) playPromise.catch(() => {});
     }
 
-    function openPhonePopup() {
-        if (!lastResultWasWin) return;
+    function closeHowToPopup() {
+        howToOverlay.classList.remove("is-visible");
+        howToOverlay.setAttribute("aria-hidden", "true");
+        window.setTimeout(() => startButton.focus(), 250);
+    }
+
+    function resetRewardFlow() {
+        activeRewardType = null;
+        selectedProductIndex = 0;
+        selectedProductName = "";
+        voucherOverlay.classList.remove("is-visible");
+        voucherOverlay.setAttribute("aria-hidden", "true");
+        productOverlay.classList.remove("is-visible");
+        productOverlay.setAttribute("aria-hidden", "true");
+        copyVoucherButton.textContent = "COPY MÃ";
+        voucherCopyStatus.textContent = "Nhấn COPY MÃ để lưu mã voucher";
+    }
+
+    function openRewardPopup() {
+        if (!activeRewardType) return;
+
         resultOverlay.classList.remove("is-visible");
         resultOverlay.setAttribute("aria-hidden", "true");
+
+        if (activeRewardType === "voucher") {
+            voucherOverlay.classList.add("is-visible");
+            voucherOverlay.setAttribute("aria-hidden", "false");
+            window.setTimeout(() => copyVoucherButton.focus(), 250);
+            return;
+        }
+
+        renderProduct();
+        productOverlay.classList.add("is-visible");
+        productOverlay.setAttribute("aria-hidden", "false");
+        window.setTimeout(() => selectProductButton.focus(), 250);
+    }
+
+    async function copyVoucherCode() {
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(VOUCHER_CODE);
+            } else {
+                const textarea = document.createElement("textarea");
+                textarea.value = VOUCHER_CODE;
+                textarea.setAttribute("readonly", "");
+                textarea.style.position = "fixed";
+                textarea.style.opacity = "0";
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand("copy");
+                textarea.remove();
+            }
+
+            copyVoucherButton.textContent = "ĐÃ COPY";
+            voucherCopyStatus.textContent = `Đã sao chép mã ${VOUCHER_CODE}`;
+        } catch (error) {
+            voucherCopyStatus.textContent = `Không thể tự động sao chép. Mã của bạn là ${VOUCHER_CODE}`;
+        }
+    }
+
+    function changeProduct(direction) {
+        selectedProductIndex = (
+            selectedProductIndex + direction + PRODUCT_REWARDS.length
+        ) % PRODUCT_REWARDS.length;
+        renderProduct();
+    }
+
+    function renderProduct() {
+        const product = PRODUCT_REWARDS[selectedProductIndex];
+        productImage.src = product.src;
+        productImage.alt = product.name;
+        productName.textContent = product.name;
+        productCounter.textContent = `${selectedProductIndex + 1} / ${PRODUCT_REWARDS.length}`;
+    }
+
+    function chooseProduct() {
+        selectedProductName = PRODUCT_REWARDS[selectedProductIndex].name;
+        openPhonePopup();
+    }
+
+    function openPhonePopup() {
+        if (!activeRewardType) return;
+        if (activeRewardType === "product" && !selectedProductName) return;
+
+        resultOverlay.classList.remove("is-visible");
+        resultOverlay.setAttribute("aria-hidden", "true");
+        voucherOverlay.classList.remove("is-visible");
+        voucherOverlay.setAttribute("aria-hidden", "true");
+        productOverlay.classList.remove("is-visible");
+        productOverlay.setAttribute("aria-hidden", "true");
+
+        if (activeRewardType === "voucher") {
+            phoneTitle.textContent = "NHẬN VOUCHER";
+            phoneDescription.textContent = `Nhập số điện thoại để lưu mã voucher ${VOUCHER_CODE}.`;
+        } else {
+            phoneTitle.textContent = "NHẬN QUÀ";
+            phoneDescription.textContent = `Nhập số điện thoại để xác nhận sản phẩm ${selectedProductName}.`;
+        }
+
         phoneOverlay.classList.add("is-visible");
         phoneOverlay.setAttribute("aria-hidden", "false");
         window.setTimeout(() => phoneInput.focus(), 250);
@@ -735,10 +875,15 @@
     function closePhonePopup() {
         phoneOverlay.classList.remove("is-visible");
         phoneOverlay.setAttribute("aria-hidden", "true");
-        if (lastResultWasWin) {
-            resultOverlay.classList.add("is-visible");
-            resultOverlay.setAttribute("aria-hidden", "false");
-            window.setTimeout(() => claimButton.focus(), 250);
+
+        if (activeRewardType === "voucher") {
+            voucherOverlay.classList.add("is-visible");
+            voucherOverlay.setAttribute("aria-hidden", "false");
+            window.setTimeout(() => voucherNextButton.focus(), 250);
+        } else if (activeRewardType === "product") {
+            productOverlay.classList.add("is-visible");
+            productOverlay.setAttribute("aria-hidden", "false");
+            window.setTimeout(() => selectProductButton.focus(), 250);
         }
     }
 
@@ -788,6 +933,8 @@
                 body: JSON.stringify({
                     phone,
                     score,
+                    voucherCode: activeRewardType === "voucher" ? VOUCHER_CODE : "",
+                    productName: activeRewardType === "product" ? selectedProductName : "",
                     createdAt: new Date().toISOString(),
                     userAgent: navigator.userAgent
                 })
@@ -810,6 +957,10 @@
     function showActionPopup() {
         phoneOverlay.classList.remove("is-visible");
         phoneOverlay.setAttribute("aria-hidden", "true");
+        voucherOverlay.classList.remove("is-visible");
+        voucherOverlay.setAttribute("aria-hidden", "true");
+        productOverlay.classList.remove("is-visible");
+        productOverlay.setAttribute("aria-hidden", "true");
         actionOverlay.classList.add("is-visible");
         actionOverlay.setAttribute("aria-hidden", "false");
         window.setTimeout(() => facebookShareButton.focus(), 250);
@@ -936,6 +1087,19 @@
     });
 
     window.addEventListener("keydown", (event) => {
+        if (productOverlay.classList.contains("is-visible")) {
+            if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                changeProduct(-1);
+                return;
+            }
+            if (event.key === "ArrowRight") {
+                event.preventDefault();
+                changeProduct(1);
+                return;
+            }
+        }
+
         if (["ArrowLeft", "ArrowRight", "a", "A", "d", "D"].includes(event.key)) event.preventDefault();
         if (["ArrowLeft", "a", "A"].includes(event.key)) keys.left = true;
         if (["ArrowRight", "d", "D"].includes(event.key)) keys.right = true;
@@ -955,9 +1119,15 @@
         if (playScreen.classList.contains("is-active")) refreshMetrics();
     });
 
+    closeHowToButton.addEventListener("click", closeHowToPopup);
     startButton.addEventListener("click", beginCountdown);
     replayButton.addEventListener("click", beginCountdown);
-    claimButton.addEventListener("click", openPhonePopup);
+    claimButton.addEventListener("click", openRewardPopup);
+    copyVoucherButton.addEventListener("click", copyVoucherCode);
+    voucherNextButton.addEventListener("click", openPhonePopup);
+    previousProductButton.addEventListener("click", () => changeProduct(-1));
+    nextProductButton.addEventListener("click", () => changeProduct(1));
+    selectProductButton.addEventListener("click", chooseProduct);
     phoneCloseButton.addEventListener("click", closePhonePopup);
     phoneForm.addEventListener("submit", submitPhone);
     facebookShareButton.addEventListener("click", shareOnFacebook);

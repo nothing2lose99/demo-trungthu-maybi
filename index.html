@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#071436">
-    <meta name="google-apps-script-url" content="https://script.google.com/macros/s/AKfycbz-ICgqxJRl2QtxbMEoS85W1IQkKm-3T1R_5w2gGyKoyONsDB_oYOmIK9zFT8sQEVCW3Q/exec">
+    <meta name="google-apps-script-url" content="https://script.google.com/macros/s/AKfycbwrdh-gMUDXrY1Heqf30hH4z1NtvixDuPhX05eYHWkc4CpgY2mwjF1jcvjNP1a3usc36A/exec">
     <title>Maybi - Bay Lên Cung Trăng</title>
     <link rel="icon" href="images/favicon.webp" type="image/webp">
     <link rel="preload" href="images/maybi-trungthu-start-screen.png" as="image" type="image/png">
@@ -25,7 +25,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700;800;900&amp;display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=20260902-1">
+    <link rel="stylesheet" href="css/style.css?v=20260904-1">
 </head>
 <body>
     <aside class="external-browser-overlay" id="externalBrowserOverlay" aria-labelledby="externalBrowserTitle" hidden>
@@ -62,6 +62,39 @@
                 <img src="images/start-screen-button.webp" alt="" draggable="false">
                 <span>CHƠI NGAY</span>
             </button>
+
+            <div class="how-to-overlay is-visible" id="howToOverlay" aria-hidden="false">
+                <div class="how-to-card" role="dialog" aria-modal="true" aria-labelledby="howToTitle">
+                    <h2 id="howToTitle">HOW TO PLAY</h2>
+                    <p class="how-to-lead">Kéo Thỏ Maybi sang trái hoặc phải để thu thập bánh và tránh chướng ngại vật.</p>
+
+                    <div class="item-guide">
+                        <article class="item-guide-card">
+                            <img src="images/cake.png" alt="Bánh Trung thu" draggable="false">
+                            <div>
+                                <strong>BÁNH TRUNG THU</strong>
+                                <span>Thu thập để tăng số bánh</span>
+                            </div>
+                        </article>
+                        <article class="item-guide-card">
+                            <div class="obstacle-guide-images" aria-hidden="true">
+                                <img src="images/obstacle2.png" alt="" draggable="false">
+                            </div>
+                            <div>
+                                <strong>CHƯỚNG NGẠI VẬT</strong>
+                                <span>Chạm phải sẽ mất 1 mạng</span>
+                            </div>
+                        </article>
+                    </div>
+
+                    <div class="reward-guide">
+                        <p><strong>20–49 bánh:</strong> Voucher 50K cho đơn từ 350K</p>
+                        <p><strong>Từ 50 bánh:</strong> Chọn 1 sản phẩm quà tặng</p>
+                    </div>
+
+                    <button class="popup-button popup-button--primary" id="closeHowToButton" type="button">ĐÃ HIỂU</button>
+                </div>
+            </div>
         </section>
 
         <section class="screen countdown-screen" id="countdownScreen" aria-label="Đếm ngược" aria-hidden="true">
@@ -82,7 +115,7 @@
                     <span class="heart" aria-hidden="true">♥</span>
                     <span class="heart" aria-hidden="true">♥</span>
                 </div>
-                <div class="hud-pill timer-box" aria-label="Thời gian còn lại">
+                <div class="hud-pill timer-box" aria-label="Thời gian còn lại" aria-hidden="true" hidden>
                     <span aria-hidden="true">⏱</span>
                     <strong id="timerValue">30</strong>
                 </div>
@@ -114,11 +147,40 @@
                 </div>
             </div>
 
+            <div class="voucher-overlay reward-overlay" id="voucherOverlay" aria-hidden="true">
+                <div class="voucher-card reward-card" role="dialog" aria-modal="true" aria-labelledby="voucherTitle">
+                    <h2 id="voucherTitle">VOUCHER 50K</h2>
+                    <p>Áp dụng cho đơn hàng từ <strong>350.000Đ</strong></p>
+                    <div class="voucher-code" id="voucherCode">MAYBI50K</div>
+                    <p class="copy-status" id="voucherCopyStatus" aria-live="polite">Nhấn COPY MÃ để lưu mã voucher</p>
+                    <div class="reward-actions reward-actions--split">
+                        <button class="popup-button popup-button--secondary" id="copyVoucherButton" type="button">COPY MÃ</button>
+                        <button class="popup-button popup-button--primary" id="voucherNextButton" type="button">TIẾP THEO</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="product-overlay reward-overlay" id="productOverlay" aria-hidden="true">
+                <div class="product-card reward-card" role="dialog" aria-modal="true" aria-labelledby="productTitle">
+                    <h2 id="productTitle">CHỌN QUÀ TẶNG</h2>
+                    <div class="product-carousel">
+                        <button class="carousel-nav carousel-nav--prev" id="previousProductButton" type="button" aria-label="Sản phẩm trước">‹</button>
+                        <figure class="product-slide">
+                            <img id="productImage" src="images/deal/ao-thun-bet-vai.webp" alt="Áo thun bệt vai" draggable="false">
+                            <figcaption id="productName">ÁO THUN BỆT VAI</figcaption>
+                        </figure>
+                        <button class="carousel-nav carousel-nav--next" id="nextProductButton" type="button" aria-label="Sản phẩm tiếp theo">›</button>
+                    </div>
+                    <p class="product-counter" id="productCounter" aria-live="polite">1 / 14</p>
+                    <button class="popup-button popup-button--primary select-product-button" id="selectProductButton" type="button">CHỌN SẢN PHẨM</button>
+                </div>
+            </div>
+
             <div class="phone-overlay" id="phoneOverlay" aria-hidden="true">
                 <div class="phone-card" role="dialog" aria-modal="true" aria-labelledby="phoneTitle">
                     <button class="phone-close" id="phoneCloseButton" type="button" aria-label="Đóng">×</button>
                     <h2 id="phoneTitle">NHẬN QUÀ</h2>
-                    <p>Nhập số điện thoại để nhận thông tin phần quà.</p>
+                    <p id="phoneDescription">Nhập số điện thoại để nhận thông tin phần quà.</p>
                     <form id="phoneForm" novalidate>
                         <label for="phoneInput">Số điện thoại</label>
                         <input id="phoneInput" name="phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="Ví dụ: 0912345678" maxlength="16" required>
@@ -153,6 +215,6 @@
     <audio id="collectMusic" preload="auto" loop src="images/sound/collect-coin-music.mp3" type="audio/mpeg"></audio>
     <audio id="gameSuccessSound" preload="auto" src="images/sound/game-success.wav"></audio>
 
-    <script src="js/game.js?v=20260902-1"></script>
+    <script src="js/game.js?v=20260903-2"></script>
 </body>
 </html>

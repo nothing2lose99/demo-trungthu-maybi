@@ -1,4 +1,13 @@
 const SHEET_NAME = "Maybi Minigame";
+const SHEET_HEADERS = [
+  "Thời gian nhận",
+  "Số điện thoại",
+  "Điểm",
+  "Thời gian từ thiết bị",
+  "Thiết bị",
+  "Mã voucher",
+  "Tên sản phẩm"
+];
 
 function doPost(e) {
   const lock = LockService.getScriptLock();
@@ -8,6 +17,8 @@ function doPost(e) {
     const payload = JSON.parse((e.postData && e.postData.contents) || "{}");
     const phone = normalizePhone(payload.phone);
     const score = Number(payload.score) || 0;
+    const voucherCode = score >= 20 && score < 50 ? "MAYBI50K" : "";
+    const productName = score >= 50 ? safeText(payload.productName) : "";
 
     if (!/^(?:\+84|84|0)\d{9,10}$/.test(phone)) {
       return jsonResponse({ success: false, message: "Invalid phone number" });
@@ -18,17 +29,18 @@ function doPost(e) {
 
     if (!sheet) {
       sheet = spreadsheet.insertSheet(SHEET_NAME);
-      sheet.appendRow(["Thời gian nhận", "Số điện thoại", "Điểm", "Thời gian từ thiết bị", "Thiết bị"]);
-      sheet.setFrozenRows(1);
-      sheet.getRange(1, 1, 1, 5).setFontWeight("bold");
     }
+
+    ensureSheetHeaders(sheet);
 
     sheet.appendRow([
       new Date(),
       safeText(phone),
       score,
       safeText(payload.createdAt),
-      safeText(payload.userAgent)
+      safeText(payload.userAgent),
+      voucherCode,
+      productName
     ]);
 
     return jsonResponse({ success: true });
@@ -37,6 +49,13 @@ function doPost(e) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function ensureSheetHeaders(sheet) {
+  sheet.getRange(1, 1, 1, SHEET_HEADERS.length)
+    .setValues([SHEET_HEADERS])
+    .setFontWeight("bold");
+  sheet.setFrozenRows(1);
 }
 
 function doGet() {
